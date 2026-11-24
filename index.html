@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow Color Lock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a calm colorist's bench; practical, exact, no fuss.
+   IDEA: a grading suite's reference monitor with a split wipe and scopes.
+   PICTURE: the live before/after wipe of the user's own video, plus a drift scope.
+   COLOUR and TYPE: neutral grading-room grey, a tungsten-to-daylight strip as the one flourish; Manrope.
+   LAYOUT: modest title, monitor first, controls in one column beside or below, scopes under. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f3f2ef,#151617);--panel:light-dark(#ffffff,#1e2021);--line:light-dark(#dcdad5,#33363a);
+--ink:light-dark(#17181a,#ecebe8);--mut:light-dark(#5d5f63,#a3a6ab);
+--acc:light-dark(#1f6f9f,#3d9ad6);--orig:light-dark(#c4622d,#d27036);--accInk:light-dark(#fff,#0d1216)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Manrope,system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3vw,40px) max(4vw,16px);max-width:1240px;margin:0 auto}
+.strip{height:6px;background:linear-gradient(90deg,#ff8a2a,#ffc27a,#fff4e6,#dfeaff,#8db6ff,#4f7fe0)}
+h1{font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0 0 6px;font-weight:800;text-wrap:balance}
+h2{font-size:20px;margin:0 0 10px}
+p{margin:0 0 10px;max-width:68ch}.mut{color:var(--mut)}.small{font-size:14px}
+.tabs{display:flex;gap:6px;margin:18px 0 0;flex-wrap:wrap}
+.tab{min-height:44px;padding:0 18px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;font:600 16px Manrope,sans-serif;cursor:pointer}
+.tab[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);grid-template-areas:"m c" "s c";grid-template-rows:auto 1fr;gap:20px;align-items:start}
+.grid>.card{grid-area:c}.grid>.scopes{grid-area:s}.grid>div:first-child{grid-area:m}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"m" "c" "s";grid-template-rows:auto}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.mon{position:relative;background:#0b0b0c;border-radius:12px;overflow:hidden;aspect-ratio:16/9;display:grid;place-items:center;touch-action:none;user-select:none}
+.mon canvas{width:100%;height:100%;object-fit:contain;display:block}
+.mon .empty{position:absolute;inset:0;display:grid;place-items:center;color:#a3a6ab;text-align:center;padding:20px}
+.wipe{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px #0006;pointer-events:none}
+.wipe span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0008}
+.tagL,.tagR{position:absolute;top:10px;font-size:13px;font-weight:600;color:#fff;background:#000a;padding:2px 8px;border-radius:6px;pointer-events:none}
+.tagL{left:10px}.tagR{right:10px}
+.transport{display:flex;gap:10px;align-items:center;margin-top:10px}
+.transport input{flex:1}.time{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--mut);font-size:14px}
+button.btn{min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 16px Manrope,sans-serif;cursor:pointer}
+button.pri{background:var(--acc);color:var(--accInk);border-color:var(--acc)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,label.drop:focus-within{outline:3px solid var(--acc);outline-offset:2px}
+label.drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer;color:var(--mut)}
+label.drop.over{border-color:var(--acc);color:var(--ink)}
+label.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.clips{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.clips li{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:14px}
+.clips li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clips button{min-width:36px;min-height:36px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.row{margin:14px 0}.row label{display:flex;justify-content:space-between;font-weight:600;font-size:15px}
+input[type=range]{width:100%;accent-color:var(--acc);min-height:32px}
+.checks{display:flex;gap:14px;flex-wrap:wrap;font-size:15px}.checks label{display:flex;gap:6px;align-items:center;min-height:36px}
+.checks input{width:18px;height:18px;accent-color:var(--acc)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;width:0;background:var(--acc)}
+.status{font-size:14px;color:var(--mut);min-height:22px;margin-top:6px}
+.scopes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media(max-width:700px){.scopes{grid-template-columns:minmax(0,1fr)}}
+.fig{position:relative;height:200px}.fig>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.legend{display:flex;gap:16px;font-size:14px;color:var(--mut);flex-wrap:wrap;margin-bottom:6px}
+.legend b{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:13px;padding:6px 8px;border-radius:8px;white-space:nowrap;display:none;z-index:2}
+.hide{display:none!important}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media(max-width:600px){.two{grid-template-columns:minmax(0,1fr)}}
+.note{border-left:3px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="strip" aria-hidden="true"></div>
+<div class="band">
+  <h1>Flow Color Lock</h1>
+  <p class="mut">Locks your video's color to its first frame. Undoes the slow brightening and washing-out that builds up when you chain clips with "last frame" in Flow. Everything runs in your browser; nothing is uploaded.</p>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabVid" aria-selected="true">Fix a video</button>
+    <button class="tab" role="tab" id="tabSeed" aria-selected="false">Fix a seed frame</button>
+  </div>
+</div>
+
+<section class="band" id="pVid" style="padding-top:0">
+  <div class="grid">
+    <div>
+      <div class="mon" id="mon">
+        <canvas id="cv"></canvas>
+        <div class="empty" id="monEmpty">Add your clips, then press Analyze.<br>Drag across the picture to compare before and after.</div>
+        <div class="wipe hide" id="wipe"><span></span></div>
+        <div class="tagL hide" id="tagL">Original</div><div class="tagR hide" id="tagR">Corrected</div>
+      </div>
+      <div class="transport">
+        <button class="btn" id="play" disabled>Play</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" disabled aria-label="Position">
+        <span class="time" id="tm">0:00 / 0:00</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>1. Clips, in order</h2>
+      <label class="drop" id="drop">Drop video files here or tap to choose<br><span class="small">One stitched video or several clips. Order matters.</span>
+        <input type="file" id="fVid" accept="video/*" multiple></label>
+      <ul class="clips" id="clips"></ul>
+      <details class="row"><summary class="small" style="cursor:pointer;min-height:32px">Use a different reference image (optional)</summary>
+        <p class="small mut" style="margin-top:8px">By default the first half-second of the first clip is the reference. Pick an image here to lock to it instead.</p>
+        <input type="file" id="fRef" accept="image/*"> <button class="btn" id="clrRef" style="min-height:36px">Clear</button></details>
+      <h2 style="margin-top:18px">2. Settings</h2>
+      <div class="row"><label for="str">Strength <span id="strV">100%</span></label><input type="range" id="str" min="0" max="100" value="100"></div>
+      <div class="row"><label for="win">Smoothing <span id="winV">2.0 s</span></label><input type="range" id="win" min="2" max="40" value="20">
+        <p class="small mut">Longer ignores quick changes like a flash or a cut. Shorter follows drift more tightly.</p></div>
+      <div class="checks"><label><input type="checkbox" id="cL" checked>Brightness</label><label><input type="checkbox" id="cC" checked>Contrast</label><label><input type="checkbox" id="cA" checked>Color</label></div>
+      <p class="small mut">If the scene's lighting is supposed to change (sunrise, walking outside), lower the strength or turn off Brightness.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn pri" id="go" disabled>Analyze</button>
+        <button class="btn" id="exp" disabled>Export video</button>
+      </div>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="status" id="st" role="status"></div>
+    </div>
+  <div class="scopes" id="scopes">
+        <div><h2>Brightness</h2>
+          <div class="legend"><span><b style="background:var(--orig)"></b>Original</span><span><b style="background:var(--acc)"></b>Corrected</span><span><b style="background:var(--mut);height:1px"></b>First frame</span></div>
+          <div class="fig" id="figL"><svg></svg><div class="tip"></div></div></div>
+        <div><h2>Warmth (blue to yellow)</h2>
+          <div class="legend"><span><b style="background:var(--orig)"></b>Original</span><span><b style="background:var(--acc)"></b>Corrected</span><span><b style="background:var(--mut);height:1px"></b>First frame</span></div>
+          <div class="fig" id="figB"><svg></svg><div class="tip"></div></div></div>
+      </div>
+  </div>
+</section>
+
+<section class="band hide" id="pSeed" style="padding-top:0">
+  <div class="grid">
+    <div>
+      <div class="mon" id="mon2">
+        <canvas id="cv2"></canvas>
+        <div class="empty" id="mon2Empty">Add a reference and a seed frame.</div>
+        <div class="wipe hide" id="wipe2"><span></span></div>
+        <div class="tagL hide" id="tagL2">Original</div><div class="tagR hide" id="tagR2">Corrected</div>
+      </div>
+      <div class="note"><p><b>This stops the drift at the source.</b> Before you feed a last frame back into Flow, correct it here so the next clip starts from the right colors.</p>
+      <p class="mut small" style="margin:0">Always use your <b>original</b> first frame as the reference, not the previous seed. That keeps errors from adding up.</p></div>
+    </div>
+    <div class="card">
+      <h2>Reference</h2>
+      <p class="small mut">Your original first frame. An image, or a video (its first frame is used).</p>
+      <input type="file" id="sRef" accept="image/*,video/*">
+      <h2 style="margin-top:18px">Seed frame to fix</h2>
+      <p class="small mut">The last frame you're about to give Flow. An image, or a video (its last frame is used).</p>
+      <input type="file" id="sSeed" accept="image/*,video/*">
+      <div class="row"><label for="sStr">Strength <span id="sStrV">100%</span></label><input type="range" id="sStr" min="0" max="100" value="100"></div>
+      <div class="checks"><label><input type="checkbox" id="sL" checked>Brightness</label><label><input type="checkbox" id="sC" checked>Contrast</label><label><input type="checkbox" id="sA" checked>Color</label></div>
+      <div style="margin-top:14px"><button class="btn pri" id="sSave" disabled>Save corrected PNG</button></div>
+      <div class="status" id="sSt" role="status"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+/* ---------- color math (sRGB D65 <-> CIELAB) ---------- */
+const LIN=new Float32Array(256);for(let i=0;i<256;i++){const c=i/255;LIN[i]=c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4)}
+const fl=t=>t>0.008856?Math.cbrt(t):7.787*t+16/116;
+function stats(data){ // data: RGBA Uint8ClampedArray -> {m:[L,a,b], s:[L,a,b]}
+  let n=0,s1=[0,0,0],s2=[0,0,0];
+  for(let i=0;i<data.length;i+=4){
+    const r=LIN[data[i]],g=LIN[data[i+1]],b=LIN[data[i+2]];
+    const X=(0.4124564*r+0.3575761*g+0.1804375*b)/0.95047,Y=0.2126729*r+0.7151522*g+0.0721750*b,Z=(0.0193339*r+0.1191920*g+0.9503041*b)/1.08883;
+    const fx=fl(X),fy=fl(Y),fz=fl(Z),v=[116*fy-16,500*(fx-fy),200*(fy-fz)];
+    for(let k=0;k<3;k++){s1[k]+=v[k];s2[k]+=v[k]*v[k]}n++}
+  const m=s1.map(x=>x/n),s=s2.map((x,k)=>Math.sqrt(Math.max(1e-6,x/n-m[k]*m[k])));return{m,s}}
+const SW=192,SH=108,sc=document.createElement('canvas');sc.width=SW;sc.height=SH;const sx=sc.getContext('2d',{willReadFrequently:true});
+function grabStats(src){sx.drawImage(src,0,0,SW,SH);return stats(sx.getImageData(0,0,SW,SH).data)}
+// correction: out = (lab - mc)*k + mt
+function params(cur,ref,str,opt){
+  const k=[1,1,1],mc=cur.m.slice(),mt=cur.m.slice();
+  const cl=x=>Math.min(1.5,Math.max(0.67,x));
+  if(opt.L)mt[0]=cur.m[0]+str*(ref.m[0]-cur.m[0]);
+  if(opt.C)k[0]=1+str*(cl(ref.s[0]/cur.s[0])-1);
+  if(opt.A)for(const c of[1,2]){mt[c]=cur.m[c]+str*(ref.m[c]-cur.m[c]);k[c]=1+str*(cl(ref.s[c]/cur.s[c])-1)}
+  return{k,mc,mt}}
+/* ---------- WebGL renderer ---------- */
+const FS=`precision highp float;varying vec2 v;uniform sampler2D t;uniform vec3 uK,uMc,uMt;uniform float uSplit;
+vec3 lin(vec3 c){return mix(c/12.92,pow((c+0.055)/1.055,vec3(2.4)),step(0.04045,c));}
+vec3 srgb(vec3 c){c=clamp(c,0.,1.);return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-0.055,step(0.0031308,c));}
+float f(float x){return x>0.008856?pow(x,1./3.):7.787*x+16./116.;}
+float fi(float x){float c=x*x*x;return c>0.008856?c:(x-16./116.)/7.787;}
+void main(){vec3 c=texture2D(t,v).rgb;if(v.x<uSplit){gl_FragColor=vec4(c,1.);return;}
+vec3 l=lin(c);vec3 xyz=mat3(0.4124564,0.2126729,0.0193339,0.3575761,0.7151522,0.1191920,0.1804375,0.0721750,0.9503041)*l;
+xyz/=vec3(0.95047,1.,1.08883);float fx=f(xyz.x),fy=f(xyz.y),fz=f(xyz.z);
+vec3 lab=vec3(116.*fy-16.,500.*(fx-fy),200.*(fy-fz));lab=(lab-uMc)*uK+uMt;
+fy=(lab.x+16.)/116.;fx=lab.y/500.+fy;fz=fy-lab.z/200.;
+xyz=vec3(fi(fx),fi(fy),fi(fz))*vec3(0.95047,1.,1.08883);
+l=mat3(3.2404542,-0.9692660,0.0556434,-1.5371385,1.8760108,-0.2040259,-0.4985314,0.0415560,1.0572252)*xyz;
+gl_FragColor=vec4(srgb(l),1.);}`;
+function makeGL(canvas){
+  const gl=canvas.getContext('webgl',{preserveDrawingBuffer:true,premultipliedAlpha:false});if(!gl)return null;
+  const sh=(ty,src)=>{const s=gl.createShader(ty);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s};
+  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,'attribute vec2 p;varying vec2 v;void main(){v=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}'));
+  gl.attachShader(p,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(p);gl.useProgram(p);
+  const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  const a=gl.getAttribLocation(p,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  const tx=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tx);
+  for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+  const U=n=>gl.getUniformLocation(p,n),uK=U('uK'),uMc=U('uMc'),uMt=U('uMt'),uS=U('uSplit');
+  return{draw(src,pr,split){if(canvas.width<2)return;gl.viewport(0,0,canvas.width,canvas.height);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,src);
+    const q=pr||{k:[1,1,1],mc:[0,0,0],mt:[0,0,0]};gl.uniform3fv(uK,q.k);gl.uniform3fv(uMc,q.mc);gl.uniform3fv(uMt,q.mt);gl.uniform1f(uS,pr?split:2);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}}}
+/* ---------- helpers ---------- */
+const fmt=t=>{t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function frameReady(v){return Promise.race([new Promise(r=>v.requestVideoFrameCallback?v.requestVideoFrameCallback(()=>r()):r()),sleep(250)])}
+async function seek(v,t){t=Math.max(0,Math.min(t,(v.duration||0)-0.001));
+  if(Math.abs(v.currentTime-t)<1e-4&&v.readyState>=2)return;
+  await new Promise(r=>{const h=()=>{v.removeEventListener('seeked',h);r()};v.addEventListener('seeked',h);v.currentTime=t});await frameReady(v)}
+function loadVideo(url,muted=true){return new Promise((res,rej)=>{const v=document.createElement('video');v.muted=muted;v.playsInline=true;v.preload='auto';
+  v.onloadeddata=()=>res(v);v.onerror=()=>rej(new Error('Could not read this video in the browser'));v.src=url})}
+function loadImage(url){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('Could not read image'));i.src=url})}
+let DL=null;try{window.claude&&window.claude.use&&window.claude.use('downloads').then(d=>DL=d).catch(()=>{})}catch(e){}
+async function saveFile(blob,name,stEl){
+  if(DL){try{await DL.save({filename:name,data:blob});stEl.textContent='Saved '+name;}catch(e){stEl.textContent=e&&e.code==='declined'?'Save cancelled.':'Could not save: '+(e&&e.message||e)}return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();stEl.textContent='Saved '+name}
+function wipeCtl(mon,wipe,onMove){let dragging=false;
+  const set=e=>{const r=mon.getBoundingClientRect();const x=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));wipe.style.left=(x*100)+'%';onMove(x)};
+  mon.addEventListener('pointerdown',e=>{dragging=true;mon.setPointerCapture(e.pointerId);set(e)});
+  mon.addEventListener('pointermove',e=>{if(dragging)set(e)});mon.addEventListener('pointerup',()=>dragging=false)}
+/* ---------- tabs ---------- */
+for(const [b,p,o,q] of [['tabVid','pVid','tabSeed','pSeed'],['tabSeed','pSeed','tabVid','pVid']])
+  $(b).onclick=()=>{$(b).setAttribute('aria-selected','true');$(o).setAttribute('aria-selected','false');$(p).classList.remove('hide');$(q).classList.add('hide')};
+/* ================= VIDEO TAB ================= */
+const S={clips:[],samples:[],ref:null,refImg:null,T:0,split:0.5,t:0,playing:false,analyzed:false};
+const cv=$('cv'),G=makeGL(cv),st=$('st'),prog=$('prog');
+if(!G)st.textContent='This browser has no WebGL, so the app cannot run here.';
+const opt=()=>({L:$('cL').checked,C:$('cC').checked,A:$('cA').checked});
+const str=()=>$('str').value/100,win=()=>$('win').value/10;
+function renderClips(){const ul=$('clips');ul.innerHTML='';
+  S.clips.forEach((c,i)=>{const li=document.createElement('li');const nm=document.createElement('span');nm.className='nm';nm.textContent=(i+1)+'. '+c.file.name+' ('+fmt(c.dur)+')';li.appendChild(nm);
+    for(const [lab,fn,title] of [['↑',()=>i>0&&S.clips.splice(i-1,0,S.clips.splice(i,1)[0]),'Move up'],['↓',()=>i<S.clips.length-1&&S.clips.splice(i+1,0,S.clips.splice(i,1)[0]),'Move down'],['×',()=>S.clips.splice(i,1),'Remove']]){
+      const b=document.createElement('button');b.textContent=lab;b.title=title;b.setAttribute('aria-label',title);b.onclick=()=>{fn();invalidate();renderClips()};li.appendChild(b)}
+    ul.appendChild(li)});
+  $('go').disabled=!S.clips.length||!G}
+function invalidate(){S.analyzed=false;$('exp').disabled=true;$('exp').textContent='Export video';$('exp').onclick=expRun;$('play').disabled=true;$('scrub').disabled=true;S.samples=[];drawScopes();if(S.clips.length)st.textContent='Press Analyze.'}
+async function addFiles(files){for(const f of files){if(!f.type.startsWith('video'))continue;
+  const url=URL.createObjectURL(f);try{const v=await loadVideo(url);S.clips.push({file:f,url,v,dur:v.duration})}catch(e){st.textContent=f.name+': '+e.message}}
+  invalidate();renderClips()}
+$('fVid').onchange=e=>{addFiles([...e.target.files]);e.target.value=''};
+const drop=$('drop');['dragenter','dragover'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>addFiles([...e.dataTransfer.files]));
+$('fRef').onchange=async e=>{const f=e.target.files[0];if(!f)return;S.refImg=await loadImage(URL.createObjectURL(f));invalidate()};
+$('clrRef').onclick=()=>{S.refImg=null;$('fRef').value='';invalidate()};
+// analysis
+$('go').onclick=async()=>{if(!S.clips.length)return;stopPlay();$('go').disabled=true;S.samples=[];
+  let off=0;for(const c of S.clips){c.off=off;off+=c.dur}S.T=off;
+  const step=S.T>180?0.5:0.25,total=Math.ceil(S.T/step)+S.clips.length*2;let done=0;
+  for(const c of S.clips){const ts=[];for(let t=0.02;t<c.dur-0.04;t+=step)ts.push(t);ts.push(Math.max(0,c.dur-0.04));
+    for(const t of ts){await seek(c.v,t);const s=grabStats(c.v);S.samples.push({tg:c.off+t,t,clip:c,m:s.m,s:s.s});
+      done++;prog.style.width=(100*done/total)+'%';st.textContent='Reading colors '+fmt(c.off+t)+' / '+fmt(S.T)}}
+  if(S.refImg)S.ref=grabStats(S.refImg);
+  else{const first=S.samples.filter(s=>s.tg<0.5);const avg=k=>[0,1,2].map(c=>first.reduce((a,s)=>a+s[k][c],0)/first.length);S.ref={m:avg('m'),s:avg('s')}}
+  prog.style.width='100%';S.analyzed=true;computeParams();
+  const c0=S.clips[0];cv.width=c0.v.videoWidth;cv.height=c0.v.videoHeight;$('mon').style.aspectRatio=cv.width+'/'+cv.height;
+  ['wipe','tagL','tagR'].forEach(i=>$(i).classList.remove('hide'));$('monEmpty').classList.add('hide');$('wipe').style.left=(S.split*100)+'%';
+  $('go').disabled=false;$('go').textContent='Re-analyze';$('exp').disabled=false;$('play').disabled=false;$('scrub').disabled=false;
+  const d=S.samples.at(-1).m[0]-S.ref.m[0];
+  st.textContent=Math.abs(d)<1.5?'Little brightness drift found. Color changes may still be corrected.':'Found '+(d>0?'brightening':'darkening')+' of '+Math.abs(d).toFixed(1)+' points by the end (0-100 scale).';
+  await showAt(0)};
+function computeParams(){const W=win()/2,o=opt(),a=str();
+  for(const s of S.samples){const nb=S.samples.filter(q=>q.clip===s.clip&&Math.abs(q.t-s.t)<=W);
+    const av=k=>[0,1,2].map(c=>nb.reduce((x,q)=>x+q[k][c],0)/nb.length);s.sm={m:av('m'),s:av('s')};s.p=params(s.sm,S.ref,a,o)}
+  drawScopes()}
+['str','win','cL','cC','cA'].forEach(id=>$(id).addEventListener('input',()=>{$('strV').textContent=$('str').value+'%';$('winV').textContent=win().toFixed(1)+' s';if(S.analyzed){computeParams();redraw()}}));
+function paramsAt(clip,t){const ss=S.samples.filter(s=>s.clip===clip);if(!ss.length)return null;
+  if(t<=ss[0].t)return ss[0].p;if(t>=ss.at(-1).t)return ss.at(-1).p;
+  let i=1;while(ss[i].t<t)i++;const A=ss[i-1],B=ss[i],u=(t-A.t)/(B.t-A.t),L=(x,y)=>x.map((v,j)=>v+(y[j]-v)*u);
+  return{k:L(A.p.k,B.p.k),mc:L(A.p.mc,B.p.mc),mt:L(A.p.mt,B.p.mt)}}
+function clipAt(tg){for(const c of S.clips)if(tg<c.off+c.dur)return c;return S.clips.at(-1)}
+let cur=null;
+async function showAt(tg){const c=clipAt(tg);cur=c;await seek(c.v,tg-c.off);S.t=tg;redraw()}
+function redraw(){if(!cur||!S.analyzed)return;G.draw(cur.v,paramsAt(cur,cur.v.currentTime),S.split);
+  const tg=cur.off+cur.v.currentTime;$('tm').textContent=fmt(tg)+' / '+fmt(S.T);if(!scrubbing)$('scrub').value=Math.round(1000*tg/S.T);moveCursor(tg)}
+wipeCtl($('mon'),$('wipe'),x=>{S.split=x;redraw()});
+let scrubbing=false;$('scrub').addEventListener('input',e=>{scrubbing=true;stopPlay();showAt(e.target.value/1000*S.T).then(()=>scrubbing=false)});
+function stopPlay(){S.playing=false;if(cur)cur.v.pause();$('play').textContent='Play'}
+async function playFrom(c){cur=c;const v=c.v;
+  const loop=()=>{if(!S.playing||cur!==c)return;redraw();v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(loop)};
+  v.onended=()=>{if(!S.playing)return;const i=S.clips.indexOf(c);if(i<S.clips.length-1){const n=S.clips[i+1];seek(n.v,0).then(()=>playFrom(n))}else stopPlay()};
+  try{await v.play()}catch(e){stopPlay();return}loop()}
+$('play').onclick=async()=>{if(S.playing){stopPlay();return}S.playing=true;$('play').textContent='Pause';
+  let c=cur||S.clips[0];if(c.v.currentTime>=c.dur-0.05){const i=S.clips.indexOf(c);c=S.clips[i+1]||S.clips[0];await seek(c.v,0)}playFrom(c)};
+/* ---------- export ---------- */
+function pickMime(){for(const m of['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'])if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m;return''}
+$('exp').onclick=async()=>{if(!S.analyzed)return;stopPlay();const mime=pickMime();if(!mime){st.textContent='This browser cannot record video. Try Chrome or Edge.';return}
+  ['exp','go','play'].forEach(i=>$(i).disabled=true);
+  const oc=document.createElement('canvas');oc.width=cv.width;oc.height=cv.height;const OG=makeGL(oc);
+  const ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume();const dest=ac.createMediaStreamDestination();
+  const els=[];for(const c of S.clips){const v=await loadVideo(c.url,false);v.volume=1;try{ac.createMediaElementSource(v).connect(dest)}catch(e){}els.push(v)}
+  const vs=oc.captureStream(0),track=vs.getVideoTracks()[0];
+  const stream=new MediaStream([track,...dest.stream.getAudioTracks()]);
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:16e6,audioBitsPerSecond:192e3});const chunks=[];
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);const stopped=new Promise(r=>rec.onstop=r);
+  OG.draw(els[0],paramsAt(S.clips[0],0),-1);rec.start(500);rec.pause();
+  for(let i=0;i<S.clips.length;i++){const c=S.clips[i],v=els[i];await seek(v,0);
+    await new Promise(async res=>{let last=-1;
+      const loop=(now,meta)=>{const t=meta?meta.mediaTime:v.currentTime;if(t!==last){last=t;OG.draw(v,paramsAt(c,t),-1);track.requestFrame&&track.requestFrame()}
+        prog.style.width=(100*(c.off+t)/S.T)+'%';st.textContent='Exporting '+fmt(c.off+t)+' / '+fmt(S.T)+' (plays in real time)';
+        if(!v.ended)v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(()=>loop())};
+      v.onended=()=>res();rec.resume();try{await v.play()}catch(e){st.textContent='Playback blocked: '+e.message;res();return}
+      v.requestVideoFrameCallback?v.requestVideoFrameCallback(loop):requestAnimationFrame(()=>loop())});
+    rec.pause()}
+  rec.stop();await stopped;ac.close();
+  const ext=mime.includes('mp4')?'mp4':'webm',blob=new Blob(chunks,{type:mime.split(';')[0]});
+  const base=S.clips[0].file.name.replace(/\.[^.]+$/,'');prog.style.width='100%';
+  ['exp','go','play'].forEach(i=>$(i).disabled=false);
+  st.textContent='Done: '+(blob.size/1048576).toFixed(1)+' MB '+ext.toUpperCase()+'.';
+  lastExport={blob,name:base+'_colorlock.'+ext};$('exp').textContent='Save '+ext.toUpperCase();$('exp').onclick=saveExport};
+let lastExport=null;const expRun=$('exp').onclick;
+function saveExport(){if(lastExport)saveFile(lastExport.blob,lastExport.name,st);$('exp').textContent='Export video';$('exp').onclick=expRun}
+/* ---------- scopes ---------- */
+const scopeDefs=[{fig:$('figL'),ch:0,lab:'Brightness'},{fig:$('figB'),ch:2,lab:'Warmth'}];
+function drawScopes(){for(const d of scopeDefs)drawScope(d)}
+function drawScope(d){const svg=d.fig.querySelector('svg'),W=d.fig.clientWidth,H=d.fig.clientHeight,ss=S.samples;
+  if(!ss.length||!S.ref){svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--mut)" font-size="14">Appears after Analyze</text>`;return}
+  const ch=d.ch,o=ss.map(s=>s.m[ch]),c=ss.map(s=>s.p.mt[ch]+(s.m[ch]-s.p.mc[ch])*s.p.k[ch]),r=S.ref.m[ch];
+  let lo=Math.min(...o,...c,r),hi=Math.max(...o,...c,r);const pad=Math.max(1,(hi-lo)*0.15);lo-=pad;hi+=pad;
+  const ml=W<520?30:40,mr=8,mt=8,mb=22,X=t=>ml+(W-ml-mr)*t/S.T,Y=v=>mt+(H-mt-mb)*(1-(v-lo)/(hi-lo));
+  const path=a=>a.map((v,i)=>(i?'L':'M')+X(ss[i].tg).toFixed(1)+' '+Y(v).toFixed(1)).join('');
+  let g='';for(let i=0;i<=3;i++){const v=lo+(hi-lo)*i/3;g+=`<line x1="${ml}" x2="${W-mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${ml-6}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="var(--mut)">${v.toFixed(0)}</text>`}
+  for(const cl of S.clips.slice(1))g+=`<line x1="${X(cl.off)}" x2="${X(cl.off)}" y1="${mt}" y2="${H-mb}" stroke="var(--mut)" stroke-dasharray="2 4" opacity=".6"/>`;
+  g+=`<text x="${ml}" y="${H-4}" font-size="12" fill="var(--mut)">0:00</text><text x="${W-mr}" y="${H-4}" font-size="12" fill="var(--mut)" text-anchor="end">${fmt(S.T)}</text>`;
+  g+=`<line x1="${ml}" x2="${W-mr}" y1="${Y(r)}" y2="${Y(r)}" stroke="var(--mut)" stroke-dasharray="5 4"/>`;
+  g+=`<path d="${path(o)}" fill="none" stroke="var(--orig)" stroke-width="2" stroke-linejoin="round"/><path d="${path(c)}" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linejoin="round"/>`;
+  g+=`<line class="cur" x1="0" x2="0" y1="${mt}" y2="${H-mb}" stroke="var(--ink)" opacity=".5"/><g class="hov" style="display:none"><line x1="0" x2="0" y1="${mt}" y2="${H-mb}" stroke="var(--ink)"/><circle r="4" fill="var(--orig)" stroke="var(--panel)" stroke-width="2"/><circle r="4" fill="var(--acc)" stroke="var(--panel)" stroke-width="2"/></g>`;
+  g+=`<rect x="${ml}" y="0" width="${W-ml-mr}" height="${H}" fill="transparent" class="hit"/>`;
+  svg.innerHTML=g;d.X=X;d.Y=Y;d.o=o;d.c=c;moveCursor(S.t);
+  const hit=svg.querySelector('.hit'),hov=svg.querySelector('.hov'),tip=d.fig.querySelector('.tip');
+  hit.onpointermove=e=>{const rc=svg.getBoundingClientRect(),px=e.clientX-rc.left,tg=(px-ml)/(W-ml-mr)*S.T;let i=0,b=1e9;ss.forEach((s,j)=>{const q=Math.abs(s.tg-tg);if(q<b){b=q;i=j}});
+    const x=X(ss[i].tg);hov.style.display='';hov.children[0].setAttribute('x1',x);hov.children[0].setAttribute('x2',x);
+    hov.children[1].setAttribute('cx',x);hov.children[1].setAttribute('cy',Y(o[i]));hov.children[2].setAttribute('cx',x);hov.children[2].setAttribute('cy',Y(c[i]));
+    tip.style.display='block';tip.textContent=fmt(ss[i].tg)+'  Original '+o[i].toFixed(1)+'  Corrected '+c[i].toFixed(1)+'  First frame '+r.toFixed(1);
+    const tw=tip.offsetWidth;tip.style.left=Math.min(W-tw,Math.max(0,x-tw/2))+'px';tip.style.top='-34px'};
+  hit.onpointerleave=()=>{hov.style.display='none';tip.style.display='none'};
+  hit.onclick=e=>{const rc=svg.getBoundingClientRect();stopPlay();showAt(Math.max(0,Math.min(S.T-0.01,(e.clientX-rc.left-ml)/(W-ml-mr)*S.T)))}}
+function moveCursor(tg){for(const d of scopeDefs){const l=d.fig.querySelector('.cur');if(l&&d.X){const x=d.X(tg);l.setAttribute('x1',x);l.setAttribute('x2',x)}}}
+const ro=new ResizeObserver(drawScopes);scopeDefs.forEach(d=>ro.observe(d.fig));
+/* ================= SEED TAB ================= */
+const cv2=$('cv2'),G2=makeGL(cv2),sSt=$('sSt'),Z={ref:null,seed:null,split:0.5};
+async function sourceFrom(file,useLast){const url=URL.createObjectURL(file);
+  if(file.type.startsWith('video')){const v=await loadVideo(url);await seek(v,useLast?v.duration-0.04:0.02);
+    const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);return c}
+  return loadImage(url)}
+function sOpt(){return{L:$('sL').checked,C:$('sC').checked,A:$('sA').checked}}
+function seedParams(){return params(grabStats(Z.seed),grabStats(Z.ref),$('sStr').value/100,sOpt())}
+function seedDraw(){if(!Z.ref||!Z.seed||!G2)return;const w=Z.seed.naturalWidth||Z.seed.width,h=Z.seed.naturalHeight||Z.seed.height;
+  if(cv2.width!==w||cv2.height!==h){cv2.width=w;cv2.height=h;$('mon2').style.aspectRatio=w+'/'+h}
+  G2.draw(Z.seed,seedParams(),Z.split);['wipe2','tagL2','tagR2'].forEach(i=>$(i).classList.remove('hide'));$('mon2Empty').classList.add('hide');$('wipe2').style.left=(Z.split*100)+'%';
+  $('sSave').disabled=false;const d=grabStats(Z.seed).m[0]-grabStats(Z.ref).m[0];sSt.textContent='Seed is '+Math.abs(d).toFixed(1)+' points '+(d>0?'brighter':'darker')+' than the reference.'}
+$('sRef').onchange=async e=>{try{Z.ref=await sourceFrom(e.target.files[0],false);seedDraw()}catch(err){sSt.textContent=err.message}};
+$('sSeed').onchange=async e=>{try{Z.seed=await sourceFrom(e.target.files[0],true);Z.name=e.target.files[0].name.replace(/\.[^.]+$/,'');seedDraw()}catch(err){sSt.textContent=err.message}};
+['sStr','sL','sC','sA'].forEach(id=>$(id).addEventListener('input',()=>{$('sStrV').textContent=$('sStr').value+'%';seedDraw()}));
+wipeCtl($('mon2'),$('wipe2'),x=>{Z.split=x;seedDraw()});
+$('sSave').onclick=()=>{G2.draw(Z.seed,seedParams(),-1);cv2.toBlob(b=>{saveFile(b,(Z.name||'seed')+'_colorlock.png',sSt);seedDraw()},'image/png')};
+window.__S=S;
+}
+</script>
+</body>
+</html>
